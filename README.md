@@ -1,36 +1,73 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# Quick Tools
 
-## Getting Started
+A single-page collection of small client-side utilities: QR generator, Base64, JWT decoder, JSON formatter, UUID generator, timestamp converter, hash generator, and URL encoder/query parser. Everything runs in the browser — no backend, no network calls.
 
-First, run the development server:
+## Getting started
 
 ```bash
+npm install
 npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+Open [http://localhost:3000](http://localhost:3000).
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+## Adding a tool
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+Adding a new tool is a two-step, one-file-plus-one-line operation:
 
-## Learn More
+1. **Create `tools/<slug>.tsx`** — a default-exported client component. Keep it self-contained (no imports from other tools), use the shared primitives in `components/` (`ToolShell`, `Field`, `Input`, `TextArea`, `Select`, `CopyButton`), and persist input with `usePersistedState` from `lib/hooks`.
 
-To learn more about Next.js, take a look at the following resources:
+   ```tsx
+   "use client";
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+   import ToolShell from "@/components/ToolShell";
+   import Field from "@/components/Field";
+   import TextArea from "@/components/TextArea";
+   import { usePersistedState } from "@/lib/hooks";
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+   export default function MyTool() {
+     const [input, setInput] = usePersistedState("my-tool:input", "");
+     return (
+       <ToolShell title="My Tool" description="What it does.">
+         <Field label="Input">
+           <TextArea value={input} onChange={(e) => setInput(e.target.value)} />
+         </Field>
+       </ToolShell>
+     );
+   }
+   ```
 
-## Deploy on Vercel
+2. **Add one entry to the registry in `lib/tools.ts`**:
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+   ```ts
+   {
+     slug: "my-tool",
+     name: "My Tool",
+     description: "What it does.",
+     keywords: ["relevant", "search", "terms"],
+     icon: IconSomething, // from @tabler/icons-react
+     load: () => import("@/tools/my-tool"),
+   },
+   ```
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+That's it — the tool automatically appears in the home grid, the command palette (Cmd/Ctrl+K), and gets its own static route at `/t/my-tool`.
+
+## Architecture
+
+- `lib/tools.ts` — the tool registry (single source of truth).
+- `app/t/[slug]/page.tsx` — resolves a slug and lazy-loads the matching component via `ToolLoader`.
+- `app/page.tsx` — searchable grid of tool cards.
+- `components/CommandPalette.tsx` — Cmd/Ctrl+K fuzzy search over tool name + keywords.
+- `components/` — dumb shared UI primitives (`ToolShell`, `Input`, `TextArea`, `Select`, `CopyButton`, `Field`).
+- `tools/*.tsx` — one file per tool, fully self-contained.
+
+## Notes
+
+- Dark mode is the default and respects `prefers-color-scheme`; toggle it in the header.
+- Each tool persists its last input to `localStorage` and restores it on mount.
+- A minimal service worker (`public/sw.js`) caches the app shell for offline use in production builds.
+- Scaffolded with the current `create-next-app` defaults (Next.js 16, Tailwind v4) rather than pinned to Next 14 — App Router structure and APIs used here are unaffected by that version bump.
+
+## Deploy
+
+Deploy target is Vercel — push to a Git repo and import the project at [vercel.com/new](https://vercel.com/new).
