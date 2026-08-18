@@ -27,14 +27,15 @@ export default function Home() {
         autoFocus
       />
       <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 md:grid-cols-3">
-        {filtered.map((tool) => (
+        {filtered.map((tool, index) => (
           <Link
             key={tool.slug}
             href={`/t/${tool.slug}`}
-            className="group flex flex-col gap-2 rounded-lg border border-neutral-200 dark:border-neutral-800 p-4 hover:border-neutral-400 dark:hover:border-neutral-600 transition-colors"
+            style={{ animationDelay: `${Math.min(index, 8) * 30}ms` }}
+            className="animate-fade-in group flex flex-col gap-2 rounded-lg border border-neutral-200 dark:border-neutral-800 p-4 hover:-translate-y-0.5 hover:border-neutral-400 hover:shadow-md dark:hover:border-neutral-600 dark:hover:shadow-neutral-900"
           >
             <div className="flex items-center gap-2">
-              <tool.icon size={18} className="text-neutral-500" />
+              <tool.icon size={18} className="text-neutral-500 transition-transform group-hover:scale-110" />
               <span className="font-medium text-sm">{tool.name}</span>
             </div>
             <p className="text-xs text-neutral-500 dark:text-neutral-400">

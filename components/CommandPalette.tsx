@@ -41,11 +41,11 @@ export default function CommandPalette() {
       </button>
       {open && (
         <div
-          className="fixed inset-0 z-50 flex items-start justify-center bg-black/50 pt-24"
+          className="animate-fade-in-fast fixed inset-0 z-50 flex items-start justify-center bg-black/50 pt-24"
           onClick={() => setOpen(false)}
         >
           <div
-            className="w-full max-w-lg overflow-hidden rounded-lg border border-neutral-200 dark:border-neutral-800 bg-white dark:bg-neutral-900 shadow-xl"
+            className="animate-scale-in w-full max-w-lg overflow-hidden rounded-lg border border-neutral-200 dark:border-neutral-800 bg-white dark:bg-neutral-900 shadow-xl"
             onClick={(e) => e.stopPropagation()}
           >
             <Command label="Command palette" shouldFilter>
@@ -63,7 +63,7 @@ export default function CommandPalette() {
                     key={tool.slug}
                     value={`${tool.name} ${tool.keywords.join(" ")}`}
                     onSelect={() => go(tool.slug)}
-                    className="flex cursor-pointer items-center gap-3 rounded-md px-3 py-2 text-sm data-[selected=true]:bg-neutral-100 dark:data-[selected=true]:bg-neutral-800"
+                    className="flex cursor-pointer items-center gap-3 rounded-md px-3 py-2 text-sm transition-colors data-[selected=true]:bg-neutral-100 dark:data-[selected=true]:bg-neutral-800"
                   >
                     <tool.icon size={16} className="shrink-0 text-neutral-500" />
                     <div>

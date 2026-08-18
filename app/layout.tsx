@@ -68,11 +68,9 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
             </div>
           </div>
         </header>
-        <main className="flex-1">{children}</main>
-        <footer className="border-t border-neutral-200 dark:border-neutral-800">
-          <div className="mx-auto max-w-5xl px-4 py-4 text-center text-xs text-neutral-500 dark:text-neutral-400">
-            &copy; {new Date().getFullYear()} Made by zagif
-          </div>
+        <main className="flex-1 pb-10">{children}</main>
+        <footer className="pointer-events-none fixed inset-x-0 bottom-2 text-center text-[11px] text-neutral-500/40 dark:text-neutral-400/40">
+          &copy; {new Date().getFullYear()} Made by zagif
         </footer>
         <ServiceWorkerRegister />
       </body>

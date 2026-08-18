@@ -35,9 +35,11 @@ export default function ThemeToggle() {
       type="button"
       onClick={toggle}
       aria-label="Toggle theme"
-      className="inline-flex h-8 w-8 items-center justify-center rounded-md border border-neutral-300 dark:border-neutral-700 text-neutral-600 dark:text-neutral-300 hover:bg-neutral-100 dark:hover:bg-neutral-800 transition-colors"
+      className="inline-flex h-8 w-8 items-center justify-center overflow-hidden rounded-md border border-neutral-300 dark:border-neutral-700 text-neutral-600 dark:text-neutral-300 hover:bg-neutral-100 dark:hover:bg-neutral-800 active:scale-90"
     >
-      {theme === "dark" ? <IconSun size={16} /> : <IconMoon size={16} />}
+      <span key={theme} className="animate-pop-in inline-flex">
+        {theme === "dark" ? <IconSun size={16} /> : <IconMoon size={16} />}
+      </span>
     </button>
   );
 }
