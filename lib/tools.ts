@@ -8,6 +8,7 @@ import {
   IconClock,
   IconHash,
   IconLink,
+  IconScissors,
   type Icon,
 } from "@tabler/icons-react";
 
@@ -84,6 +85,14 @@ export const tools: Tool[] = [
     keywords: ["url", "uri", "encode", "decode", "query", "params"],
     icon: IconLink,
     load: () => import("@/tools/url"),
+  },
+  {
+    slug: "shorten",
+    name: "Link Shortener",
+    description: "Create and manage short links backed by Redis.",
+    keywords: ["short", "link", "url", "redirect", "shortener"],
+    icon: IconScissors,
+    load: () => import("@/tools/shorten"),
   },
 ];
 
