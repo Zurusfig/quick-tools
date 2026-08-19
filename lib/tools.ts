@@ -9,6 +9,7 @@ import {
   IconHash,
   IconLink,
   IconScissors,
+  IconBowlChopsticks,
   type Icon,
 } from "@tabler/icons-react";
 
@@ -93,6 +94,14 @@ export const tools: Tool[] = [
     keywords: ["short", "link", "url", "redirect", "shortener"],
     icon: IconScissors,
     load: () => import("@/tools/shorten"),
+  },
+  {
+    slug: "sushi",
+    name: "Sushi Bill Splitter",
+    description: "Split a conveyor-belt sushi bill by plate colour and count.",
+    keywords: ["sushi", "bill", "split", "plates", "vat", "conveyor", "thailand"],
+    icon: IconBowlChopsticks,
+    load: () => import("@/tools/sushi"),
   },
 ];
 
