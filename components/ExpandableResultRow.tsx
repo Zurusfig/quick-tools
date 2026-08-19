@@ -6,12 +6,14 @@ export default function ExpandableResultRow({
   meta,
   amount,
   trace,
+  extra,
 }: {
   title: string;
   badge?: string;
   meta: string;
   amount: string;
   trace: string[];
+  extra?: React.ReactNode;
 }) {
   return (
     <details className="group rounded-md border border-neutral-100 dark:border-neutral-900">
@@ -26,6 +28,17 @@ export default function ExpandableResultRow({
           <span className="whitespace-nowrap font-mono font-medium text-neutral-900 dark:text-neutral-100">
             {amount}
           </span>
+          {extra && (
+            <span
+              className="relative shrink-0"
+              onClick={(e) => {
+                e.preventDefault();
+                e.stopPropagation();
+              }}
+            >
+              {extra}
+            </span>
+          )}
         </span>
       </summary>
       <pre className="animate-fade-in-fast overflow-x-auto whitespace-pre px-3 pb-3 font-mono text-xs text-neutral-600 dark:text-neutral-400">
