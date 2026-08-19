@@ -122,10 +122,10 @@ export default forwardRef<
     <div>
       <style>{`
         @keyframes sushi-receipt-print {
-          0%   { transform: translateY(-100%) rotate(0deg); box-shadow: 0 0 0 rgba(26,26,26,0); }
-          65%  { transform: translateY(4%) rotate(0.12deg); box-shadow: 0 9px 22px rgba(26,26,26,0.22); }
-          82%  { transform: translateY(-1%) rotate(-0.06deg); box-shadow: 0 9px 25px rgba(26,26,26,0.25); }
-          100% { transform: translateY(0) rotate(0deg); box-shadow: 0 10px 28px rgba(26,26,26,0.28); }
+          0%   { transform: translateY(-100%) rotate(0deg); }
+          65%  { transform: translateY(4%) rotate(0.12deg); }
+          82%  { transform: translateY(-1%) rotate(-0.06deg); }
+          100% { transform: translateY(0) rotate(0deg); }
         }
         .sushi-receipt-print-in {
           animation: sushi-receipt-print 1.3s cubic-bezier(0.22, 1, 0.36, 1) both;
@@ -134,7 +134,6 @@ export default forwardRef<
           .sushi-receipt-print-in {
             animation: none !important;
             transform: translateY(0) rotate(0deg) !important;
-            box-shadow: 0 10px 28px rgba(26,26,26,0.28) !important;
           }
         }
       `}</style>

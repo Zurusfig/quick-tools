@@ -226,7 +226,6 @@ export default function SushiTool() {
   const RECEIPT_CAPTURE_OPTIONS = {
     pixelRatio: 3,
     backgroundColor: "#FFFFFF",
-    finalStyles: { boxShadow: "0 10px 28px rgba(26,26,26,0.28)" },
   };
 
   async function downloadReceipt() {
