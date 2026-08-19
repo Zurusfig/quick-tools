@@ -149,12 +149,21 @@ test("grand total trace states the same grand total that was returned", () => {
 
 // --- colour helpers ----------------------------------------------------------
 
-test("flags the ambiguous red/crimson pair in Katsu Midori without hardcoding", () => {
+test("flags visually similar plates by colour distance, not by hardcoded ids", () => {
+  const plates = [
+    { id: "a", label: "A", price: 10, color: "#D32F2F" },
+    { id: "b", label: "B", price: 10, color: "#C62828" }, // close to A, should be flagged
+    { id: "c", label: "C", price: 10, color: "#2E6DA4" }, // far from both, should not be flagged
+  ];
+  const flagged = findSimilarPlateIds(plates);
+  assert.ok(flagged.has("a"));
+  assert.ok(flagged.has("b"));
+  assert.ok(!flagged.has("c"));
+});
+
+test("Katsu Midori's built-in palette has no accidental near-duplicate colours", () => {
   const flagged = findSimilarPlateIds(katsuMidori.plates);
-  assert.ok(flagged.has("km-red"));
-  assert.ok(flagged.has("km-crimson"));
-  assert.ok(!flagged.has("km-blue"));
-  assert.ok(!flagged.has("km-olive"));
+  assert.equal(flagged.size, 0);
 });
 
 test("light plates need a swatch border, dark plates don't", () => {

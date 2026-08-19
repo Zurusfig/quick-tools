@@ -236,7 +236,7 @@ export default function SushiTool() {
             type="checkbox"
             checked={state.taxIncluded}
             onChange={(e) => update({ taxIncluded: e.target.checked })}
-            className="h-4 w-4"
+            className="h-4 w-4 accent-neutral-600 dark:accent-neutral-400"
           />
           Tax included in plate prices
         </label>
@@ -247,11 +247,15 @@ export default function SushiTool() {
           <NumberField kind="decimal" value={state.service} onChange={(service) => update({ service })} className="w-20" />
         </Field>
       </div>
-      {state.taxIncluded && (
-        <p className="text-xs text-neutral-500">
-          Service charge is ignored while tax is included — turn the toggle off to add VAT and service on top instead.
-        </p>
-      )}
+      <p
+        className={clsx(
+          "text-xs text-neutral-500 transition-opacity",
+          state.taxIncluded ? "opacity-100" : "opacity-0"
+        )}
+        aria-hidden={!state.taxIncluded}
+      >
+        Service charge is ignored while tax is included — turn the toggle off to add VAT and service on top instead.
+      </p>
 
       <div className="flex flex-col gap-2">
         <span className="text-xs font-medium text-neutral-500">Shared extras</span>
@@ -337,7 +341,7 @@ export default function SushiTool() {
             type="checkbox"
             checked={includeBreakdown}
             onChange={(e) => setIncludeBreakdown(e.target.checked)}
-            className="h-4 w-4"
+            className="h-4 w-4 accent-neutral-600 dark:accent-neutral-400"
           />
           Include full breakdown
         </label>

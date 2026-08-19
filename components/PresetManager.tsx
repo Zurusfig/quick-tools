@@ -3,7 +3,7 @@
 import { useState } from "react";
 import Field from "@/components/Field";
 import Input from "@/components/Input";
-import Select from "@/components/Select";
+import Dropdown from "@/components/Dropdown";
 import type { Preset } from "@/lib/sushi";
 
 const ACTION_BTN =
@@ -37,13 +37,13 @@ export default function PresetManager({
     <>
       <div className="flex flex-wrap items-end gap-2">
         <Field label="Preset">
-          <Select value={activePreset.id} onChange={(e) => onSelect(e.target.value)}>
-            {presets.map((preset) => (
-              <option key={preset.id} value={preset.id}>
-                {preset.name}
-              </option>
-            ))}
-          </Select>
+          <Dropdown
+            value={activePreset.id}
+            options={presets.map((preset) => ({ value: preset.id, label: preset.name }))}
+            onChange={onSelect}
+            aria-label="Preset"
+            className="w-full min-w-44 sm:w-auto"
+          />
         </Field>
         <button type="button" onClick={onDuplicate} className={ACTION_BTN}>
           Duplicate &amp; edit

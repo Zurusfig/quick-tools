@@ -15,10 +15,12 @@ export default function PlateCounter({
   ariaLabel: string;
 }) {
   return (
-    <div className="flex items-center gap-2 rounded-md border border-neutral-100 dark:border-neutral-900 p-1.5">
-      <ColorSwatch color={color} size="sm" />
-      <span className="w-14 shrink-0 truncate text-xs">{label}</span>
-      <NumberField kind="int" stepper value={value} onChange={onChange} aria-label={ariaLabel} className="flex-1" />
+    <div className="flex flex-col gap-1.5 rounded-md border border-neutral-100 dark:border-neutral-900 p-1.5">
+      <div className="flex min-w-0 items-center gap-1.5">
+        <ColorSwatch color={color} size="sm" />
+        <span className="truncate text-xs">{label}</span>
+      </div>
+      <NumberField kind="int" stepper value={value} onChange={onChange} aria-label={ariaLabel} className="w-full" />
     </div>
   );
 }

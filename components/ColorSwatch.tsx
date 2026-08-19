@@ -18,7 +18,7 @@ export default function ColorSwatch({
   size?: "sm" | "md";
 }) {
   return (
-    <div className="flex flex-col items-center gap-1 text-center">
+    <div className={clsx("flex flex-col items-center gap-1 text-center", size === "md" && "w-20")}>
       <span
         className={clsx(
           "inline-block rounded-full",
@@ -29,14 +29,20 @@ export default function ColorSwatch({
       />
       {label && <span className="text-[11px] font-medium leading-tight">{label}</span>}
       {price && <span className="text-[11px] text-neutral-500 leading-tight">{price}</span>}
-      {caption && (
+      {size === "md" && (
         <span className="max-w-20 text-[10px] leading-tight text-neutral-500 dark:text-neutral-400">
-          {caption}
+          {caption ?? " "}
         </span>
       )}
-      {warning && (
+      {size === "md" && (
         <span className="flex items-center gap-0.5 text-[10px] text-amber-500">
-          <IconAlertTriangle size={11} /> same colour — check the print
+          {warning ? (
+            <>
+              <IconAlertTriangle size={11} /> same colour — check the print
+            </>
+          ) : (
+            " "
+          )}
         </span>
       )}
     </div>

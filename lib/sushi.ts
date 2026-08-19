@@ -55,7 +55,7 @@ const katsuMidoriPlates: Plate[] = [
     id: "km-crimson",
     label: "Crimson",
     price: 140,
-    color: "#C62828",
+    color: "#7A1220",
     pattern: "patterned — red with floral print",
   },
   { id: "km-gold", label: "Gold", price: 150, color: "#E3C05B", pattern: "waffle" },

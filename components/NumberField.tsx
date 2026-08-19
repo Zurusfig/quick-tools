@@ -49,7 +49,7 @@ export default function NumberField({
   }
 
   return (
-    <div className={className}>
+    <div className={clsx("relative", className)}>
       <div className="flex items-center gap-1">
         {stepper && (
           <button
@@ -69,6 +69,7 @@ export default function NumberField({
           aria-label={ariaLabel}
           className={clsx(
             "h-10 w-full rounded-md border border-neutral-300 dark:border-neutral-700 bg-white dark:bg-neutral-900 px-2 text-center font-mono text-sm outline-none focus:border-neutral-500",
+            error && "border-red-400 dark:border-red-500/60",
             inputClassName
           )}
         />
@@ -83,7 +84,12 @@ export default function NumberField({
           </button>
         )}
       </div>
-      {error && <p className="mt-1 text-[11px] text-red-500">{error}</p>}
+      {/* Absolutely positioned so a validation error never shifts surrounding layout. */}
+      {error && (
+        <p className="animate-fade-in-fast absolute left-0 top-full z-10 mt-1 whitespace-nowrap rounded-md border border-red-200 bg-white px-1.5 py-0.5 text-[11px] text-red-500 shadow-sm dark:border-red-900 dark:bg-neutral-900">
+          {error}
+        </p>
+      )}
     </div>
   );
 }
