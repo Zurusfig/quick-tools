@@ -9,18 +9,20 @@ function applyTheme(theme: Theme) {
   document.documentElement.classList.toggle("dark", theme === "dark");
 }
 
-function readInitialTheme(): Theme {
-  if (typeof window === "undefined") return "dark";
-  const stored = window.localStorage.getItem("quick-tools:theme") as Theme | null;
-  return stored ?? (window.matchMedia("(prefers-color-scheme: light)").matches ? "light" : "dark");
-}
-
 export default function ThemeToggle() {
-  const [theme, setTheme] = useState<Theme>(readInitialTheme);
+  // Always starts "dark" to match the server-rendered <html> default (see
+  // layout.tsx's suppressHydrationWarning) — hydration requires the first
+  // client render to equal the server's, so the real preference (which needs
+  // localStorage/matchMedia, unavailable during SSR) is only read after
+  // mount, in the effect below.
+  const [theme, setTheme] = useState<Theme>("dark");
 
   useEffect(() => {
-    applyTheme(theme);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+    const stored = window.localStorage.getItem("quick-tools:theme") as Theme | null;
+    const preferred = stored ?? (window.matchMedia("(prefers-color-scheme: light)").matches ? "light" : "dark");
+    applyTheme(preferred);
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- syncing with browser-only APIs unavailable during SSR
+    setTheme(preferred);
   }, []);
 
   function toggle() {
