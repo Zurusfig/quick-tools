@@ -210,6 +210,13 @@ export type SplitInput = {
   tax: TaxSettings;
 };
 
+export type PlateLine = {
+  label: string;
+  price: number;
+  qty: number;
+  lineTotal: number;
+};
+
 export type PersonResult = {
   id: string;
   name: string;
@@ -220,6 +227,7 @@ export type PersonResult = {
   unroundedTotal: number;
   total: number;
   adjustment: number;
+  plateLines: PlateLine[];
   trace: string[];
 };
 
@@ -235,7 +243,7 @@ export type SplitResult = {
 
 function buildPersonTrace(params: {
   person: Person;
-  plates: Plate[];
+  plateEntries: { plate: Plate; qty: number }[];
   sharedPerPerson: number;
   extrasTotal: number;
   peopleCount: number;
@@ -250,7 +258,7 @@ function buildPersonTrace(params: {
 }): string[] {
   const {
     person,
-    plates,
+    plateEntries,
     sharedPerPerson,
     extrasTotal,
     peopleCount,
@@ -265,10 +273,6 @@ function buildPersonTrace(params: {
   } = params;
 
   const lines: string[] = [person.name.trim() || "Person"];
-
-  const plateEntries = plates
-    .map((plate) => ({ plate, qty: person.counts[plate.id] ?? 0 }))
-    .filter((entry) => entry.qty > 0);
 
   if (plateEntries.length > 0) {
     for (const { plate, qty } of plateEntries) {
@@ -384,7 +388,7 @@ export function computeSushiSplit(input: SplitInput): SplitResult {
     const plateSubtotal = plateEntries.reduce((sum, e) => sum + e.qty * e.plate.price, 0);
     const preTaxSubtotal = plateSubtotal + sharedPerPerson;
     const unroundedTotal = preTaxSubtotal * multiplier;
-    return { person, plateCount, plateSubtotal, preTaxSubtotal, unroundedTotal };
+    return { person, plateEntries, plateCount, plateSubtotal, preTaxSubtotal, unroundedTotal };
   });
 
   const baseRounded = raw.map((p) => Math.round(p.unroundedTotal));
@@ -411,7 +415,7 @@ export function computeSushiSplit(input: SplitInput): SplitResult {
     const finalTotal = baseRounded[i] + adjustments[i];
     const trace = buildPersonTrace({
       person: p.person,
-      plates: preset.plates,
+      plateEntries: p.plateEntries,
       sharedPerPerson,
       extrasTotal,
       peopleCount,
@@ -434,6 +438,12 @@ export function computeSushiSplit(input: SplitInput): SplitResult {
       unroundedTotal: p.unroundedTotal,
       total: finalTotal,
       adjustment: adjustments[i],
+      plateLines: p.plateEntries.map((e) => ({
+        label: e.plate.label,
+        price: e.plate.price,
+        qty: e.qty,
+        lineTotal: e.plate.price * e.qty,
+      })),
       trace,
     };
   });
@@ -491,4 +501,27 @@ export function buildCopySummary(
     : `Total (+${tax.vat}% VAT${tax.service ? ` +${tax.service}% svc` : ""})`;
   lines.push(`${taxLabel.padEnd(nameWidth + 11)}${formatWhole(result.grandTotal).padStart(8)}`);
   return lines.join("\n");
+}
+
+// --- receipt totals ----------------------------------------------------------
+// Same formulas already used by buildGrandTrace, just re-derived from the
+// existing SplitResult fields for the receipt's SUBTOTAL/VAT/SERVICE/TOTAL
+// layout — not a new source of truth.
+
+export type ReceiptTotals = {
+  subtotal: number;
+  vat: number;
+  service: number;
+  total: number;
+};
+
+export function buildReceiptTotals(result: SplitResult, tax: TaxSettings): ReceiptTotals {
+  const preTaxTotal = result.plateSubtotalTotal + result.extrasTotal;
+  if (tax.taxIncluded) {
+    const vat = preTaxTotal - preTaxTotal / (1 + tax.vat / 100);
+    return { subtotal: preTaxTotal - vat, vat, service: 0, total: result.grandTotal };
+  }
+  const vat = preTaxTotal * (tax.vat / 100);
+  const service = preTaxTotal * (tax.service / 100);
+  return { subtotal: preTaxTotal, vat, service, total: result.grandTotal };
 }

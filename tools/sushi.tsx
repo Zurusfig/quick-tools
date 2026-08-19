@@ -1,7 +1,9 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import clsx from "clsx";
+import QRCode from "qrcode";
+import generatePayload from "promptpay-qr";
 import { IconPlus, IconTrash } from "@tabler/icons-react";
 import ToolShell from "@/components/ToolShell";
 import Field from "@/components/Field";
@@ -12,6 +14,11 @@ import NumberField from "@/components/NumberField";
 import PlateCounter from "@/components/PlateCounter";
 import PresetManager from "@/components/PresetManager";
 import ExpandableResultRow from "@/components/ExpandableResultRow";
+import PersonQrPopover from "@/components/PersonQrPopover";
+import ReceiptPreview from "@/tools/sushi-receipt";
+import { renderQrToCanvas } from "@/lib/qrRender";
+import { captureNodeAsPngDataUrl, captureNodeAsPngBlob } from "@/lib/htmlCapture";
+import { validateId, formatId, idTypeLabel } from "@/lib/promptpay";
 import {
   BUILT_IN_PRESETS,
   SUSHIRO_PRESET_ID,
@@ -29,12 +36,15 @@ import {
   findSimilarPlateIds,
   computeSushiSplit,
   buildCopySummary,
+  buildReceiptTotals,
   formatWhole,
 } from "@/lib/sushi";
 
 const STORAGE_KEY = "sushi:v1";
+const PROMPTPAY_STORAGE_KEY = "promptpay:v1";
+const RECEIPT_QR_OPTIONS = { pixelSize: 420, marginModules: 3, fg: "#000000", bg: "#ffffff", roundness: 0, logoScale: 0 };
 const ACTION_BTN =
-  "rounded-md border border-neutral-300 dark:border-neutral-700 px-3 py-1.5 text-xs font-medium hover:bg-neutral-100 dark:hover:bg-neutral-800";
+  "rounded-md border border-neutral-300 dark:border-neutral-700 px-3 py-1.5 text-xs font-medium hover:bg-neutral-100 dark:hover:bg-neutral-800 disabled:cursor-not-allowed disabled:opacity-40 disabled:hover:bg-transparent";
 
 type PersistedState = {
   presets: Preset[];
@@ -58,9 +68,31 @@ function loadInitial(): PersistedState {
   }
 }
 
+// Read-only: the PromptPay tool owns "promptpay:v1", this tool never writes to it.
+function readPromptPayDefaultId(): string {
+  if (typeof window === "undefined") return "";
+  try {
+    const raw = window.localStorage.getItem(PROMPTPAY_STORAGE_KEY);
+    if (!raw) return "";
+    const parsed = JSON.parse(raw);
+    return typeof parsed.defaultId === "string" ? parsed.defaultId : "";
+  } catch {
+    return "";
+  }
+}
+
 export default function SushiTool() {
   const [state, setState] = useState(loadInitial);
   const [includeBreakdown, setIncludeBreakdown] = useState(false);
+
+  const [promptpayIdInput, setPromptpayIdInput] = useState(readPromptPayDefaultId);
+  const [addPromptPayToReceipt, setAddPromptPayToReceipt] = useState(false);
+  const [promptpayQrDataUrl, setPromptpayQrDataUrl] = useState("");
+  const [openPersonQrId, setOpenPersonQrId] = useState("");
+  const [showReceiptPreview, setShowReceiptPreview] = useState(false);
+  const [receiptExportMessage, setReceiptExportMessage] = useState("");
+  const [exportedAt] = useState(() => new Date());
+  const receiptRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     window.localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
@@ -70,6 +102,7 @@ export default function SushiTool() {
   const activePreset = allPresets.find((p) => p.id === state.selectedPresetId) ?? BUILT_IN_PRESETS[0];
   const similarPlateIds = useMemo(() => findSimilarPlateIds(activePreset.plates), [activePreset]);
 
+  const tax = { taxIncluded: state.taxIncluded, vat: state.vat, service: state.service };
   const result = useMemo(
     () =>
       computeSushiSplit({
@@ -80,6 +113,33 @@ export default function SushiTool() {
       }),
     [activePreset, state.people, state.extras, state.taxIncluded, state.vat, state.service]
   );
+  const isEmpty = result.plateCountTotal === 0 && result.extrasTotal === 0;
+
+  const { digits: promptpayDigits, type: promptpayType, error: promptpayError } = validateId(promptpayIdInput);
+  const promptpayReady = addPromptPayToReceipt && !!promptpayType;
+
+  useEffect(() => {
+    let cancelled = false;
+    async function run() {
+      if (!promptpayReady || !promptpayType) {
+        setPromptpayQrDataUrl("");
+        return;
+      }
+      try {
+        const payload = generatePayload(promptpayDigits, { amount: result.grandTotal });
+        const qr = QRCode.create(payload, { errorCorrectionLevel: "M" });
+        const canvas = document.createElement("canvas");
+        await renderQrToCanvas(canvas, qr.modules, RECEIPT_QR_OPTIONS);
+        if (!cancelled) setPromptpayQrDataUrl(canvas.toDataURL("image/png"));
+      } catch {
+        if (!cancelled) setPromptpayQrDataUrl("");
+      }
+    }
+    run();
+    return () => {
+      cancelled = true;
+    };
+  }, [promptpayReady, promptpayType, promptpayDigits, result.grandTotal]);
 
   function update(patch: Partial<PersistedState>) {
     setState((prev) => ({ ...prev, ...patch }));
@@ -133,12 +193,37 @@ export default function SushiTool() {
     setState((prev) => ({ ...prev, extras: prev.extras.filter((e) => e.id !== id) }));
   }
 
-  const copyText = buildCopySummary(
-    activePreset,
-    { taxIncluded: state.taxIncluded, vat: state.vat, service: state.service },
-    result,
-    includeBreakdown
-  );
+  function receiptFilename() {
+    const slug = activePreset.name.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/(^-|-$)/g, "");
+    return `sushi-${slug}-${new Date().toISOString().slice(0, 10)}.png`;
+  }
+
+  async function downloadReceipt() {
+    if (!receiptRef.current || isEmpty) return;
+    const dataUrl = await captureNodeAsPngDataUrl(receiptRef.current, { pixelRatio: 3, backgroundColor: "#f7f3ea" });
+    const link = document.createElement("a");
+    link.download = receiptFilename();
+    link.href = dataUrl;
+    link.click();
+  }
+
+  async function copyReceiptImage() {
+    if (!receiptRef.current || isEmpty) return;
+    if (typeof ClipboardItem === "undefined" || !navigator.clipboard?.write) {
+      setReceiptExportMessage("Copying images isn't supported in this browser — use Download receipt instead.");
+      return;
+    }
+    const blob = await captureNodeAsPngBlob(receiptRef.current, { pixelRatio: 3, backgroundColor: "#f7f3ea" });
+    if (!blob) return;
+    try {
+      await navigator.clipboard.write([new ClipboardItem({ "image/png": blob })]);
+      setReceiptExportMessage("Receipt image copied.");
+    } catch {
+      setReceiptExportMessage("Could not copy the image — use Download receipt instead.");
+    }
+  }
+
+  const copyText = buildCopySummary(activePreset, tax, result, includeBreakdown);
 
   return (
     <ToolShell title="Sushi Bill Splitter" description="Count plates per person, split the bill, VAT-aware.">
@@ -325,6 +410,28 @@ export default function SushiTool() {
             meta={`${person.plateCount} plates`}
             amount={`฿${formatWhole(person.total)}`}
             trace={person.trace}
+            extra={
+              promptpayType ? (
+                <>
+                  <button
+                    type="button"
+                    onClick={() => setOpenPersonQrId((prev) => (prev === person.id ? "" : person.id))}
+                    className="rounded-md border border-neutral-300 dark:border-neutral-700 px-2 py-1 text-[11px] font-medium hover:bg-neutral-100 dark:hover:bg-neutral-800"
+                  >
+                    QR
+                  </button>
+                  {openPersonQrId === person.id && (
+                    <PersonQrPopover
+                      name={person.name}
+                      digits={promptpayDigits}
+                      idType={promptpayType}
+                      amount={person.total}
+                      onClose={() => setOpenPersonQrId("")}
+                    />
+                  )}
+                </>
+              ) : undefined
+            }
           />
         ))}
         <ExpandableResultRow
@@ -333,6 +440,83 @@ export default function SushiTool() {
           amount={`฿${formatWhole(result.grandTotal)}`}
           trace={result.trace}
         />
+      </div>
+
+      <div className="flex flex-col gap-2 rounded-md border border-neutral-200 dark:border-neutral-800 p-3">
+        <label className="flex items-center gap-2 text-sm">
+          <input
+            type="checkbox"
+            checked={addPromptPayToReceipt}
+            onChange={(e) => setAddPromptPayToReceipt(e.target.checked)}
+            disabled={!promptpayType}
+            className="h-4 w-4 accent-neutral-600 dark:accent-neutral-400"
+          />
+          Add PromptPay QR to receipt
+        </label>
+        <div className="flex flex-wrap items-center gap-2">
+          <Input
+            value={promptpayIdInput}
+            onChange={(e) => setPromptpayIdInput(e.target.value)}
+            placeholder="PromptPay ID (mobile, national ID, or e-Wallet)"
+            className="max-w-64"
+          />
+          {promptpayType && (
+            <span className="shrink-0 rounded-full border border-neutral-300 dark:border-neutral-700 px-2 py-1 text-[11px] text-neutral-500">
+              {idTypeLabel(promptpayType)}
+            </span>
+          )}
+        </div>
+        {promptpayIdInput.trim() ? (
+          promptpayError && <p className="text-xs text-red-500">{promptpayError}</p>
+        ) : (
+          <p className="text-xs text-neutral-500">
+            Enter a PromptPay ID to include a QR for the grand total on the receipt, or use the per-person QR
+            buttons above.
+          </p>
+        )}
+      </div>
+
+      <div className="flex flex-col gap-2">
+        <button
+          type="button"
+          onClick={() => setShowReceiptPreview((prev) => !prev)}
+          className={clsx(ACTION_BTN, "self-start")}
+        >
+          {showReceiptPreview ? "Hide receipt preview" : "Preview receipt"}
+        </button>
+
+        <div
+          className={
+            showReceiptPreview
+              ? "animate-fade-in flex justify-center overflow-x-auto rounded-md border border-neutral-200 dark:border-neutral-800 p-4"
+              : "fixed left-[-9999px] top-0"
+          }
+        >
+          <div ref={receiptRef}>
+            <ReceiptPreview
+              presetName={activePreset.name}
+              exportedAt={exportedAt}
+              result={result}
+              tax={tax}
+              totals={buildReceiptTotals(result, tax)}
+              promptpayQr={
+                promptpayReady && promptpayQrDataUrl && promptpayType
+                  ? { dataUrl: promptpayQrDataUrl, recipientLabel: formatId(promptpayDigits, promptpayType) }
+                  : undefined
+              }
+            />
+          </div>
+        </div>
+
+        <div className="flex flex-wrap items-center gap-2">
+          <button type="button" onClick={downloadReceipt} disabled={isEmpty} className={ACTION_BTN}>
+            Download receipt
+          </button>
+          <button type="button" onClick={copyReceiptImage} disabled={isEmpty} className={ACTION_BTN}>
+            Copy receipt image
+          </button>
+        </div>
+        {receiptExportMessage && <p className="text-xs text-neutral-500">{receiptExportMessage}</p>}
       </div>
 
       <div className="flex flex-wrap items-center gap-2">

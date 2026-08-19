@@ -6,6 +6,7 @@ import {
   computeSushiSplit,
   findSimilarPlateIds,
   needsSwatchBorder,
+  buildReceiptTotals,
   formatWhole,
   type Person,
   type ExtraLine,
@@ -172,4 +173,65 @@ test("light plates need a swatch border, dark plates don't", () => {
   assert.equal(needsSwatchBorder("#C0C4C8"), true);
   assert.equal(needsSwatchBorder("#1A1A1A"), false);
   assert.equal(needsSwatchBorder("#D32F2F"), false);
+});
+
+// --- plateLines (for the receipt, sourced from the same pass as the trace) --
+
+test("plateLines match the plate-price/qty lines in that person's own trace", () => {
+  const people: Person[] = [personWith("Earn", { "km-red": 3, "km-green": 2, "km-crimson": 1 })];
+  const result = computeSushiSplit({
+    preset: katsuMidori,
+    people,
+    extras: [],
+    tax: { taxIncluded: true, vat: 10, service: 0 },
+  });
+  const earn = result.people[0];
+
+  assert.deepEqual(
+    earn.plateLines.map((l) => [l.label, l.qty, l.lineTotal]),
+    [
+      ["Red", 3, 120],
+      ["Green", 2, 120],
+      ["Crimson", 1, 140],
+    ]
+  );
+  for (const line of earn.plateLines) {
+    assert.ok(earn.trace.some((t) => t.includes(line.label) && t.includes(String(line.lineTotal))));
+  }
+});
+
+test("plateLines omits zero-count plates and is empty for a person with none", () => {
+  const people: Person[] = [personWith("Nobody", {})];
+  const result = computeSushiSplit({
+    preset: katsuMidori,
+    people,
+    extras: [],
+    tax: { taxIncluded: true, vat: 10, service: 0 },
+  });
+  assert.deepEqual(result.people[0].plateLines, []);
+});
+
+// --- buildReceiptTotals -------------------------------------------------------
+
+test("buildReceiptTotals: tax included means subtotal + vat reconcile to the pre-tax total", () => {
+  const people: Person[] = [personWith("A", { "km-red": 5 })]; // 200 baht
+  const tax: TaxSettings = { taxIncluded: true, vat: 10, service: 0 };
+  const result = computeSushiSplit({ preset: katsuMidori, people, extras: [], tax });
+  const totals = buildReceiptTotals(result, tax);
+
+  assert.equal(totals.total, result.grandTotal);
+  assert.equal(totals.service, 0);
+  assert.ok(Math.abs(totals.subtotal + totals.vat - 200) < 1e-9);
+});
+
+test("buildReceiptTotals: tax excluded adds vat and service on top of the subtotal", () => {
+  const people: Person[] = [personWith("A", { "km-red": 5 })]; // 200 baht
+  const tax: TaxSettings = { taxIncluded: false, vat: 7, service: 3 };
+  const result = computeSushiSplit({ preset: katsuMidori, people, extras: [], tax });
+  const totals = buildReceiptTotals(result, tax);
+
+  assert.equal(totals.subtotal, 200);
+  assert.ok(Math.abs(totals.vat - 14) < 1e-9);
+  assert.ok(Math.abs(totals.service - 6) < 1e-9);
+  assert.equal(totals.total, result.grandTotal);
 });
