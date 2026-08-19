@@ -18,6 +18,7 @@ export type Tool = {
   name: string;
   description: string;
   keywords: string[];
+  category: string;
   icon: Icon;
   load: () => Promise<{ default: ComponentType }>;
 };
@@ -28,6 +29,7 @@ export const tools: Tool[] = [
     name: "QR Code Generator",
     description: "Generate a QR code from text or a URL, download as PNG or SVG.",
     keywords: ["qr", "code", "generator", "barcode", "png", "svg"],
+    category: "Generators",
     icon: IconQrcode,
     load: () => import("@/tools/qr"),
   },
@@ -36,6 +38,7 @@ export const tools: Tool[] = [
     name: "Base64 Encode/Decode",
     description: "Encode or decode Base64 text, handles UTF-8 and files.",
     keywords: ["base64", "encode", "decode", "utf-8", "file"],
+    category: "Encoding",
     icon: IconBinary,
     load: () => import("@/tools/base64"),
   },
@@ -44,6 +47,7 @@ export const tools: Tool[] = [
     name: "JWT Decoder",
     description: "Decode a JWT header and payload, check expiry.",
     keywords: ["jwt", "token", "decode", "auth", "json web token"],
+    category: "Encoding",
     icon: IconKey,
     load: () => import("@/tools/jwt"),
   },
@@ -52,6 +56,7 @@ export const tools: Tool[] = [
     name: "JSON Formatter",
     description: "Format, minify, and validate JSON with error locations.",
     keywords: ["json", "format", "minify", "validate", "pretty"],
+    category: "Formatting",
     icon: IconBraces,
     load: () => import("@/tools/json"),
   },
@@ -60,6 +65,7 @@ export const tools: Tool[] = [
     name: "UUID Generator",
     description: "Generate v4 UUIDs in bulk.",
     keywords: ["uuid", "guid", "v4", "generator", "random"],
+    category: "Generators",
     icon: IconFingerprint,
     load: () => import("@/tools/uuid"),
   },
@@ -68,6 +74,7 @@ export const tools: Tool[] = [
     name: "Timestamp Converter",
     description: "Convert between Unix, ISO, and local time.",
     keywords: ["timestamp", "unix", "epoch", "iso", "date", "time"],
+    category: "Time",
     icon: IconClock,
     load: () => import("@/tools/timestamp"),
   },
@@ -76,6 +83,7 @@ export const tools: Tool[] = [
     name: "Hash Generator",
     description: "MD5, SHA-1, SHA-256, SHA-512 of text.",
     keywords: ["hash", "md5", "sha1", "sha256", "sha512", "checksum"],
+    category: "Encoding",
     icon: IconHash,
     load: () => import("@/tools/hash"),
   },
@@ -84,6 +92,7 @@ export const tools: Tool[] = [
     name: "URL Encoder & Query Parser",
     description: "Encode/decode URI components, parse query strings.",
     keywords: ["url", "uri", "encode", "decode", "query", "params"],
+    category: "Encoding",
     icon: IconLink,
     load: () => import("@/tools/url"),
   },
@@ -92,6 +101,7 @@ export const tools: Tool[] = [
     name: "Link Shortener",
     description: "Create and manage short links backed by Redis.",
     keywords: ["short", "link", "url", "redirect", "shortener"],
+    category: "Web",
     icon: IconScissors,
     load: () => import("@/tools/shorten"),
   },
@@ -100,6 +110,7 @@ export const tools: Tool[] = [
     name: "Sushi Bill Splitter",
     description: "Split a conveyor-belt sushi bill by plate colour and count.",
     keywords: ["sushi", "bill", "split", "plates", "vat", "conveyor", "thailand"],
+    category: "Fun",
     icon: IconBowlChopsticks,
     load: () => import("@/tools/sushi"),
   },
@@ -107,4 +118,8 @@ export const tools: Tool[] = [
 
 export function getTool(slug: string): Tool | undefined {
   return tools.find((t) => t.slug === slug);
+}
+
+export function getCategories(): string[] {
+  return Array.from(new Set(tools.map((t) => t.category))).sort((a, b) => a.localeCompare(b));
 }
