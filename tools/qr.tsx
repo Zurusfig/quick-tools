@@ -8,7 +8,7 @@ import TextArea from "@/components/TextArea";
 import Input from "@/components/Input";
 import Select from "@/components/Select";
 import { usePersistedState, useDebounced } from "@/lib/hooks";
-import { renderQrToCanvas, renderQrToSvgString } from "@/lib/qrRender";
+import { renderQrToCanvas, renderQrToSvgString, downloadCanvasPng, downloadSvgString } from "@/lib/qrRender";
 
 type EcLevel = "L" | "M" | "Q" | "H";
 const MAX_LOGO_BYTES = 5 * 1024 * 1024;
@@ -94,23 +94,11 @@ export default function QrTool() {
   }
 
   function downloadPng() {
-    const canvas = canvasRef.current;
-    if (!canvas) return;
-    const link = document.createElement("a");
-    link.download = "qrcode.png";
-    link.href = canvas.toDataURL("image/png");
-    link.click();
+    if (canvasRef.current) downloadCanvasPng(canvasRef.current, "qrcode.png");
   }
 
   function downloadSvg() {
-    if (!svgMarkup) return;
-    const blob = new Blob([svgMarkup], { type: "image/svg+xml" });
-    const url = URL.createObjectURL(blob);
-    const link = document.createElement("a");
-    link.download = "qrcode.svg";
-    link.href = url;
-    link.click();
-    URL.revokeObjectURL(url);
+    if (svgMarkup) downloadSvgString(svgMarkup, "qrcode.svg");
   }
 
   return (
