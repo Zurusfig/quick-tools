@@ -89,17 +89,35 @@ export default function SushiTool() {
   const [addPromptPayToReceipt, setAddPromptPayToReceipt] = useState(false);
   const [promptpayQrDataUrl, setPromptpayQrDataUrl] = useState("");
   const [openPersonQrId, setOpenPersonQrId] = useState("");
-  const [showReceiptPreview, setShowReceiptPreview] = useState(false);
+  const [receiptMounted, setReceiptMounted] = useState(false);
+  const [receiptVisible, setReceiptVisible] = useState(false);
   const [printKey, setPrintKey] = useState(0);
   const [exportedAt, setExportedAt] = useState(() => new Date());
   const [receiptExportMessage, setReceiptExportMessage] = useState("");
   const receiptRef = useRef<HTMLDivElement>(null);
+  const hideTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   function generateReceipt() {
+    if (hideTimeoutRef.current) {
+      clearTimeout(hideTimeoutRef.current);
+      hideTimeoutRef.current = null;
+    }
     setExportedAt(new Date());
-    setShowReceiptPreview(true);
+    setReceiptMounted(true);
     setPrintKey((k) => k + 1);
+    requestAnimationFrame(() => setReceiptVisible(true));
   }
+
+  function hideReceipt() {
+    setReceiptVisible(false);
+    hideTimeoutRef.current = setTimeout(() => setReceiptMounted(false), 300);
+  }
+
+  useEffect(() => {
+    return () => {
+      if (hideTimeoutRef.current) clearTimeout(hideTimeoutRef.current);
+    };
+  }, []);
 
   useEffect(() => {
     window.localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
@@ -207,7 +225,7 @@ export default function SushiTool() {
 
   const RECEIPT_CAPTURE_OPTIONS = {
     pixelRatio: 3,
-    backgroundColor: "#FBFAF5",
+    backgroundColor: "#FFFFFF",
     finalStyles: { boxShadow: "0 10px 28px rgba(26,26,26,0.28)" },
   };
 
@@ -494,15 +512,20 @@ export default function SushiTool() {
           <button type="button" onClick={generateReceipt} disabled={isEmpty} className={ACTION_BTN}>
             Generate receipt
           </button>
-          {showReceiptPreview && (
-            <button type="button" onClick={() => setShowReceiptPreview(false)} className={ACTION_BTN}>
+          {receiptMounted && (
+            <button type="button" onClick={hideReceipt} className={ACTION_BTN}>
               Hide receipt
             </button>
           )}
         </div>
 
-        {showReceiptPreview && (
-          <div className="flex justify-center overflow-x-auto rounded-md border border-neutral-200 dark:border-neutral-800 bg-neutral-100 p-4 dark:bg-neutral-950">
+        {receiptMounted && (
+          <div
+            className={clsx(
+              "flex justify-center overflow-x-auto rounded-md border border-neutral-200 dark:border-neutral-800 bg-neutral-100 p-4 dark:bg-neutral-950 transition-all duration-300 ease-out",
+              receiptVisible ? "opacity-100 translate-y-0" : "opacity-0 -translate-y-2"
+            )}
+          >
             <ReceiptPreview
               key={printKey}
               ref={receiptRef}
@@ -520,10 +543,10 @@ export default function SushiTool() {
         )}
 
         <div className="flex flex-wrap items-center gap-2">
-          <button type="button" onClick={downloadReceipt} disabled={!showReceiptPreview} className={ACTION_BTN}>
+          <button type="button" onClick={downloadReceipt} disabled={!receiptMounted} className={ACTION_BTN}>
             Download receipt
           </button>
-          <button type="button" onClick={copyReceiptImage} disabled={!showReceiptPreview} className={ACTION_BTN}>
+          <button type="button" onClick={copyReceiptImage} disabled={!receiptMounted} className={ACTION_BTN}>
             Copy receipt image
           </button>
         </div>

@@ -1,13 +1,13 @@
 "use client";
 
-import { forwardRef, useEffect, useRef, useState } from "react";
+import { forwardRef, useEffect, useRef, useState, type Ref } from "react";
 import JsBarcode from "jsbarcode";
 import type { SplitResult, TaxSettings, ReceiptTotals } from "@/lib/sushi";
 import { formatDecimal } from "@/lib/sushi";
 
 // Hardcoded — a receipt is black-on-paper regardless of the app's theme.
-const PAPER = "#FBFAF5";
-const NOTCH = "#EAE6D9";
+const PAPER = "#FFFFFF";
+const NOTCH = "#E7E7E7";
 const INK = "#1A1A1A";
 const RECEIPT_FONT = 'ui-monospace, "SF Mono", Menlo, Consolas, "Noto Sans Thai", "Leelawadee UI", Tahoma, monospace';
 const WIDTH = 380;
@@ -53,6 +53,25 @@ function money(n: number): string {
   return formatDecimal(n);
 }
 
+function setRef<T>(ref: Ref<T> | undefined, node: T) {
+  if (typeof ref === "function") ref(node);
+  else if (ref) (ref as { current: T | null }).current = node;
+}
+
+/** A little tactile "poke" when the receipt is clicked — a one-off Web Animation so it never touches the print-in CSS animation or leaks into an export. */
+function nudge(node: HTMLElement) {
+  if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) return;
+  node.animate(
+    [
+      { transform: "rotate(0deg) scale(1)" },
+      { transform: "rotate(-0.6deg) scale(0.994)", offset: 0.35 },
+      { transform: "rotate(0.35deg) scale(1.001)", offset: 0.7 },
+      { transform: "rotate(0deg) scale(1)" },
+    ],
+    { duration: 340, easing: "cubic-bezier(0.33, 1, 0.68, 1)" }
+  );
+}
+
 function Barcode({ value }: { value: string }) {
   const svgRef = useRef<SVGSVGElement>(null);
   useEffect(() => {
@@ -94,31 +113,22 @@ export default forwardRef<
     totals: ReceiptTotals;
     promptpayQr?: ReceiptPromptPayQr;
   }
->(function ReceiptPreview({ exportedAt, result, tax, totals, promptpayQr }, ref) {
+>(function ReceiptPreview({ exportedAt, result, tax, totals, promptpayQr }, forwardedRef) {
   const [splitNo] = useState(() => randomDigits(8));
   const [transNo] = useState(() => randomDigits(8));
+  const paperRef = useRef<HTMLDivElement>(null);
 
   return (
     <div>
       <style>{`
         @keyframes sushi-receipt-print {
           0%   { transform: translateY(-100%) rotate(0deg); box-shadow: 0 0 0 rgba(26,26,26,0); }
-          8%   { transform: translateY(-100%) rotate(0.2deg); box-shadow: 0 0 0 rgba(26,26,26,0); }
-          9%   { transform: translateY(-78%) rotate(-0.3deg); box-shadow: 0 2px 4px rgba(26,26,26,0.06); }
-          22%  { transform: translateY(-78%) rotate(-0.1deg); box-shadow: 0 2px 4px rgba(26,26,26,0.06); }
-          23%  { transform: translateY(-55%) rotate(0.35deg); box-shadow: 0 4px 10px rgba(26,26,26,0.1); }
-          40%  { transform: translateY(-55%) rotate(0.1deg); box-shadow: 0 4px 10px rgba(26,26,26,0.1); }
-          41%  { transform: translateY(-34%) rotate(-0.25deg); box-shadow: 0 6px 16px rgba(26,26,26,0.15); }
-          58%  { transform: translateY(-34%) rotate(-0.05deg); box-shadow: 0 6px 16px rgba(26,26,26,0.15); }
-          59%  { transform: translateY(-14%) rotate(0.2deg); box-shadow: 0 8px 20px rgba(26,26,26,0.2); }
-          74%  { transform: translateY(-14%) rotate(0.05deg); box-shadow: 0 8px 20px rgba(26,26,26,0.2); }
-          75%  { transform: translateY(-2%) rotate(-0.1deg); box-shadow: 0 9px 24px rgba(26,26,26,0.24); }
-          85%  { transform: translateY(0%) rotate(0deg); box-shadow: 0 10px 28px rgba(26,26,26,0.28); }
-          92%  { transform: translateY(3px) rotate(0deg); box-shadow: 0 10px 28px rgba(26,26,26,0.28); }
+          65%  { transform: translateY(4%) rotate(0.12deg); box-shadow: 0 9px 22px rgba(26,26,26,0.22); }
+          82%  { transform: translateY(-1%) rotate(-0.06deg); box-shadow: 0 9px 25px rgba(26,26,26,0.25); }
           100% { transform: translateY(0) rotate(0deg); box-shadow: 0 10px 28px rgba(26,26,26,0.28); }
         }
         .sushi-receipt-print-in {
-          animation: sushi-receipt-print 1.6s cubic-bezier(0.3, 0, 0.2, 1) both;
+          animation: sushi-receipt-print 1.3s cubic-bezier(0.22, 1, 0.36, 1) both;
         }
         @media (prefers-reduced-motion: reduce) {
           .sushi-receipt-print-in {
@@ -138,9 +148,13 @@ export default forwardRef<
           margin: "0 auto",
         }}
       />
-      <div style={{ width: WIDTH, overflow: "hidden", margin: "0 auto" }}>
+      <div style={{ width: WIDTH, overflow: "hidden", margin: "0 auto", paddingTop: 16 }}>
         <div
-          ref={ref}
+          ref={(node) => {
+            paperRef.current = node;
+            setRef(forwardedRef, node);
+          }}
+          onClick={() => paperRef.current && nudge(paperRef.current)}
           className="sushi-receipt-print-in"
           style={{
             position: "relative",
@@ -155,6 +169,7 @@ export default forwardRef<
             lineHeight: 1.45,
             letterSpacing: "0.04em",
             textShadow: "0 0 0.4px currentColor",
+            cursor: "pointer",
           }}
         >
           <svg
