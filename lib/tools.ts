@@ -10,6 +10,7 @@ import {
   IconLink,
   IconScissors,
   IconBowlChopsticks,
+  IconCurrencyBaht,
   type Icon,
 } from "@tabler/icons-react";
 
@@ -113,6 +114,15 @@ export const tools: Tool[] = [
     category: "Fun",
     icon: IconBowlChopsticks,
     load: () => import("@/tools/sushi"),
+  },
+  {
+    slug: "promptpay",
+    name: "PromptPay QR Generator",
+    description: "Generate a Thai PromptPay QR from a phone number, ID, or e-Wallet ID.",
+    keywords: ["promptpay", "thailand", "qr", "payment", "bank", "transfer", "thai"],
+    category: "Finance",
+    icon: IconCurrencyBaht,
+    load: () => import("@/tools/promptpay"),
   },
 ];
 

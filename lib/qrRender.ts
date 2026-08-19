@@ -143,3 +143,20 @@ export function renderQrToSvgString(matrix: QrMatrix, options: QrRenderOptions):
 
   return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${totalModules} ${totalModules}" width="${pixelSize}" height="${pixelSize}"><rect width="${totalModules}" height="${totalModules}" fill="${bg}"/>${modules}${logoMarkup}</svg>`;
 }
+
+export function downloadCanvasPng(canvas: HTMLCanvasElement, filename: string): void {
+  const link = document.createElement("a");
+  link.download = filename;
+  link.href = canvas.toDataURL("image/png");
+  link.click();
+}
+
+export function downloadSvgString(svg: string, filename: string): void {
+  const blob = new Blob([svg], { type: "image/svg+xml" });
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement("a");
+  link.download = filename;
+  link.href = url;
+  link.click();
+  URL.revokeObjectURL(url);
+}
