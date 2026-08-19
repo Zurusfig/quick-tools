@@ -17,7 +17,7 @@ import ExpandableResultRow from "@/components/ExpandableResultRow";
 import PersonQrPopover from "@/components/PersonQrPopover";
 import ReceiptPreview from "@/tools/sushi-receipt";
 import { renderQrToCanvas } from "@/lib/qrRender";
-import { captureNodeAsPngDataUrl, captureNodeAsPngBlob } from "@/lib/htmlCapture";
+import { captureAnimatedNodeAsPngDataUrl, captureAnimatedNodeAsPngBlob } from "@/lib/htmlCapture";
 import { validateId, formatId, idTypeLabel } from "@/lib/promptpay";
 import {
   BUILT_IN_PRESETS,
@@ -90,9 +90,16 @@ export default function SushiTool() {
   const [promptpayQrDataUrl, setPromptpayQrDataUrl] = useState("");
   const [openPersonQrId, setOpenPersonQrId] = useState("");
   const [showReceiptPreview, setShowReceiptPreview] = useState(false);
+  const [printKey, setPrintKey] = useState(0);
+  const [exportedAt, setExportedAt] = useState(() => new Date());
   const [receiptExportMessage, setReceiptExportMessage] = useState("");
-  const [exportedAt] = useState(() => new Date());
   const receiptRef = useRef<HTMLDivElement>(null);
+
+  function generateReceipt() {
+    setExportedAt(new Date());
+    setShowReceiptPreview(true);
+    setPrintKey((k) => k + 1);
+  }
 
   useEffect(() => {
     window.localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
@@ -198,9 +205,15 @@ export default function SushiTool() {
     return `sushi-${slug}-${new Date().toISOString().slice(0, 10)}.png`;
   }
 
+  const RECEIPT_CAPTURE_OPTIONS = {
+    pixelRatio: 3,
+    backgroundColor: "#FBFAF5",
+    finalStyles: { boxShadow: "0 10px 28px rgba(26,26,26,0.28)" },
+  };
+
   async function downloadReceipt() {
-    if (!receiptRef.current || isEmpty) return;
-    const dataUrl = await captureNodeAsPngDataUrl(receiptRef.current, { pixelRatio: 3, backgroundColor: "#f7f3ea" });
+    if (!receiptRef.current) return;
+    const dataUrl = await captureAnimatedNodeAsPngDataUrl(receiptRef.current, RECEIPT_CAPTURE_OPTIONS);
     const link = document.createElement("a");
     link.download = receiptFilename();
     link.href = dataUrl;
@@ -208,12 +221,12 @@ export default function SushiTool() {
   }
 
   async function copyReceiptImage() {
-    if (!receiptRef.current || isEmpty) return;
+    if (!receiptRef.current) return;
     if (typeof ClipboardItem === "undefined" || !navigator.clipboard?.write) {
       setReceiptExportMessage("Copying images isn't supported in this browser — use Download receipt instead.");
       return;
     }
-    const blob = await captureNodeAsPngBlob(receiptRef.current, { pixelRatio: 3, backgroundColor: "#f7f3ea" });
+    const blob = await captureAnimatedNodeAsPngBlob(receiptRef.current, RECEIPT_CAPTURE_OPTIONS);
     if (!blob) return;
     try {
       await navigator.clipboard.write([new ClipboardItem({ "image/png": blob })]);
@@ -477,24 +490,22 @@ export default function SushiTool() {
       </div>
 
       <div className="flex flex-col gap-2">
-        <button
-          type="button"
-          onClick={() => setShowReceiptPreview((prev) => !prev)}
-          className={clsx(ACTION_BTN, "self-start")}
-        >
-          {showReceiptPreview ? "Hide receipt preview" : "Preview receipt"}
-        </button>
+        <div className="flex flex-wrap items-center gap-2">
+          <button type="button" onClick={generateReceipt} disabled={isEmpty} className={ACTION_BTN}>
+            Generate receipt
+          </button>
+          {showReceiptPreview && (
+            <button type="button" onClick={() => setShowReceiptPreview(false)} className={ACTION_BTN}>
+              Hide receipt
+            </button>
+          )}
+        </div>
 
-        <div
-          className={
-            showReceiptPreview
-              ? "animate-fade-in flex justify-center overflow-x-auto rounded-md border border-neutral-200 dark:border-neutral-800 p-4"
-              : "fixed left-[-9999px] top-0"
-          }
-        >
-          <div ref={receiptRef}>
+        {showReceiptPreview && (
+          <div className="flex justify-center overflow-x-auto rounded-md border border-neutral-200 dark:border-neutral-800 bg-neutral-100 p-4 dark:bg-neutral-950">
             <ReceiptPreview
-              presetName={activePreset.name}
+              key={printKey}
+              ref={receiptRef}
               exportedAt={exportedAt}
               result={result}
               tax={tax}
@@ -506,13 +517,13 @@ export default function SushiTool() {
               }
             />
           </div>
-        </div>
+        )}
 
         <div className="flex flex-wrap items-center gap-2">
-          <button type="button" onClick={downloadReceipt} disabled={isEmpty} className={ACTION_BTN}>
+          <button type="button" onClick={downloadReceipt} disabled={!showReceiptPreview} className={ACTION_BTN}>
             Download receipt
           </button>
-          <button type="button" onClick={copyReceiptImage} disabled={isEmpty} className={ACTION_BTN}>
+          <button type="button" onClick={copyReceiptImage} disabled={!showReceiptPreview} className={ACTION_BTN}>
             Copy receipt image
           </button>
         </div>
