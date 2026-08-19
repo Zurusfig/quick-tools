@@ -521,7 +521,10 @@ export default function SushiTool() {
         {receiptMounted && (
           <div
             className={clsx(
-              "flex justify-center overflow-x-auto rounded-md border border-neutral-200 dark:border-neutral-800 bg-neutral-100 p-4 dark:bg-neutral-950 transition-all duration-300 ease-out",
+              // Hardcoded (no dark: variant) — the receipt itself is always light-on-paper
+              // regardless of theme, so its immediate backdrop (including what shows through
+              // the torn-edge notches) has to stay light too, or dark mode clashes with it.
+              "flex justify-center overflow-x-auto rounded-md border border-neutral-200 bg-neutral-100 p-4 transition-all duration-300 ease-out",
               receiptVisible ? "opacity-100 translate-y-0" : "opacity-0 -translate-y-2"
             )}
           >
