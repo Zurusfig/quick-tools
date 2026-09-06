@@ -11,6 +11,7 @@ import {
   IconScissors,
   IconBowlChopsticks,
   IconCurrencyBaht,
+  IconWorld,
   type Icon,
 } from "@tabler/icons-react";
 
@@ -114,6 +115,15 @@ export const tools: Tool[] = [
     category: "Fun",
     icon: IconBowlChopsticks,
     load: () => import("@/tools/sushi"),
+  },
+  {
+    slug: "timezone",
+    name: "Time Zone Converter",
+    description: "Convert an instant across zones and see the hour overlap at a glance.",
+    keywords: ["timezone", "time zone", "convert", "utc", "dst", "world clock", "meeting"],
+    category: "Time",
+    icon: IconWorld,
+    load: () => import("@/tools/timezone"),
   },
   {
     slug: "promptpay",
