@@ -1,6 +1,6 @@
 # Quick Tools
 
-A single-page collection of small client-side utilities: QR generator, Base64, JWT decoder, JSON formatter, UUID generator, timestamp converter, hash generator, and URL encoder/query parser. Everything runs in the browser — no backend, no network calls. The one exception is the [link shortener](#link-shortener), which is backed by Redis.
+A single-page collection of small client-side utilities: QR generator, Base64, JWT decoder, JSON formatter, UUID generator, timestamp converter, hash generator, URL encoder/query parser, and an image & PDF compressor. Everything runs in the browser — no backend, no network calls. The one exception is the [link shortener](#link-shortener), which is backed by Redis.
 
 ## Getting started
 
