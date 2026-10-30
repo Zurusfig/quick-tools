@@ -12,6 +12,7 @@ import {
   IconBowlChopsticks,
   IconCurrencyBaht,
   IconWorld,
+  IconFileZip,
   type Icon,
 } from "@tabler/icons-react";
 
@@ -133,6 +134,15 @@ export const tools: Tool[] = [
     category: "Finance",
     icon: IconCurrencyBaht,
     load: () => import("@/tools/promptpay"),
+  },
+  {
+    slug: "compress",
+    name: "Image & PDF Compressor",
+    description: "Shrink pictures and scanned PDFs in your browser. Nothing is uploaded.",
+    keywords: ["compress", "image", "picture", "photo", "pdf", "resize", "shrink", "reduce", "size", "jpg", "png", "webp"],
+    category: "Files",
+    icon: IconFileZip,
+    load: () => import("@/tools/compress"),
   },
 ];
 
