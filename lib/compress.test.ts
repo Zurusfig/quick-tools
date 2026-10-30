@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { fitDimensions, formatBytes, getPreset, percentSaved, renamedFile } from "./compress.ts";
+import { estimatePdfBytes, extrapolateSize, samplePageNumbers, fitDimensions, formatBytes, getPreset, percentSaved, renamedFile } from "./compress.ts";
 
 test("formatBytes", () => {
   assert.equal(formatBytes(512), "512 B");
@@ -32,5 +32,21 @@ test("renamedFile", () => {
 });
 
 test("getPreset falls back to balanced", () => {
-  assert.equal(getPreset("nope").id, "balanced");
+  assert.equal(getPreset("nope").id, "medium");
+});
+
+test("extrapolateSize scales by pixel ratio", () => {
+  assert.equal(extrapolateSize(1000, 100, 1000), 10000);
+  assert.equal(extrapolateSize(1000, 0, 1000), 0);
+});
+
+test("estimatePdfBytes averages samples and adds overhead", () => {
+  assert.equal(estimatePdfBytes([1000, 3000], 10), 2000 * 10 + 1500 + 3000);
+  assert.equal(estimatePdfBytes([], 10), 0);
+});
+
+test("samplePageNumbers spreads across pages", () => {
+  assert.deepEqual(samplePageNumbers(2), [1, 2]);
+  assert.deepEqual(samplePageNumbers(10), [1, 6, 10]);
+  assert.deepEqual(samplePageNumbers(1), [1]);
 });

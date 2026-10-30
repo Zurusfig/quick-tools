@@ -5,21 +5,25 @@ import { IconAlertTriangle } from "@tabler/icons-react";
 import { ErrorText } from "@/components/Field";
 import {
   FileDropzone,
+  EstimateLine,
   LargerNotice,
   PresetPicker,
+  ProgressBar,
   SizeStats,
   buttonClass,
   primaryButtonClass,
 } from "@/components/compress/shared";
 import { usePersistedState } from "@/lib/hooks";
 import { downloadBlob, formatBytes, getPreset, renamedFile, type PresetId } from "@/lib/compress";
-import { MAX_PDF_BYTES, PdfCompressError, compressPdf, type PdfResult } from "@/lib/pdfCompress";
+import { MAX_PDF_BYTES, PdfCompressError, compressPdf, estimatePdfSize, type PdfResult } from "@/lib/pdfCompress";
 
 export default function PdfPanel() {
-  const [presetId, setPresetId] = usePersistedState("compress:preset", "balanced");
+  const [presetId, setPresetId] = usePersistedState("compress:preset", "medium");
   const [file, setFile] = useState<File | null>(null);
   const [agreed, setAgreed] = useState(false);
-  const [progress, setProgress] = useState<{ page: number; total: number } | null>(null);
+  const [progress, setProgress] = useState<{ page: number; done: number; total: number } | null>(null);
+  const [estimate, setEstimate] = useState<{ file: File; dpi: number; quality: number; bytes: number; pages: number } | null>(null);
+  const [estimating, setEstimating] = useState(false);
   const [result, setResult] = useState<PdfResult | null>(null);
   const [resultUrl, setResultUrl] = useState("");
   const [pageIndex, setPageIndex] = useState(0);
@@ -29,6 +33,10 @@ export default function PdfPanel() {
 
   const preset = getPreset(presetId);
   const busy = progress !== null;
+  const liveEstimate =
+    estimate && estimate.file === file && estimate.dpi === preset.pdfDpi && estimate.quality === preset.pdfQuality
+      ? estimate.bytes
+      : null;
 
   const urls = useRef<{ result: string; page: string }>({ result: "", page: "" });
 
@@ -46,6 +54,27 @@ export default function PdfPanel() {
     setPageIndex(index);
     setPageUrl(urls.current.page);
   }
+
+  useEffect(() => {
+    if (!file) return;
+    const controller = new AbortController();
+    const { pdfDpi: dpi, pdfQuality: quality } = preset;
+    const timer = setTimeout(async () => {
+      setEstimating(true);
+      try {
+        const res = await estimatePdfSize(file, { dpi, quality, signal: controller.signal });
+        setEstimate({ file, dpi, quality, ...res });
+      } catch (err) {
+        if (err instanceof PdfCompressError && err.code !== "cancelled") setError(err.message);
+      } finally {
+        if (!controller.signal.aborted) setEstimating(false);
+      }
+    }, 300);
+    return () => {
+      clearTimeout(timer);
+      controller.abort();
+    };
+  }, [file, preset]);
 
   useEffect(() => {
     const live = urls.current;
@@ -80,7 +109,7 @@ export default function PdfPanel() {
     setResult(null);
     clearUrls();
     setPageIndex(0);
-    setProgress({ page: 0, total: 0 });
+    setProgress({ page: 0, done: 0, total: 0 });
     try {
       const res = await compressPdf(file, {
         dpi: preset.pdfDpi,
@@ -122,8 +151,9 @@ export default function PdfPanel() {
             {file.name} · {formatBytes(file.size)}
           </p>
           <PresetPicker value={preset.id as PresetId} onChange={setPresetId} />
+          <EstimateLine original={file.size} estimate={liveEstimate} pending={estimating} />
 
-          <div className="flex gap-3 rounded-md border border-amber-300 bg-amber-50 px-3 py-3 text-sm text-amber-900 dark:border-amber-800 dark:bg-amber-950/40 dark:text-amber-200">
+          <div className="animate-fade-in-fast flex gap-3 rounded-md border border-amber-300 bg-amber-50 px-3 py-3 text-sm text-amber-900 dark:border-amber-800 dark:bg-amber-950/40 dark:text-amber-200">
             <IconAlertTriangle size={18} className="mt-0.5 shrink-0" />
             <div className="flex flex-col gap-2">
               <p>
@@ -155,28 +185,21 @@ export default function PdfPanel() {
           </div>
 
           {busy && (
-            <div className="flex flex-col gap-1" role="status">
-              <div className="h-2 overflow-hidden rounded bg-neutral-200 dark:bg-neutral-800">
-                <div
-                  className="h-full bg-neutral-900 dark:bg-neutral-100 transition-[width]"
-                  style={{ width: progress.total ? `${(progress.page / progress.total) * 100}%` : "5%" }}
-                />
-              </div>
-              <p className="text-xs text-neutral-500 dark:text-neutral-400">
-                {progress.total ? `Processing page ${progress.page} of ${progress.total}…` : "Loading PDF…"}
-              </p>
-            </div>
+            <ProgressBar
+              value={progress.total ? progress.done / progress.total : 0}
+              label={progress.total ? `Processing page ${progress.page} of ${progress.total}` : "Loading PDF…"}
+            />
           )}
 
           {result && (
-            <div className="flex flex-col gap-3">
+            <div className="animate-fade-in flex flex-col gap-3">
               <SizeStats original={file.size} compressed={result.blob.size} />
               {larger && <LargerNotice kind="PDF" />}
 
               <div className="flex flex-col items-center gap-2 rounded-lg border border-neutral-200 dark:border-neutral-800 bg-neutral-100 dark:bg-neutral-900 p-2">
                 {pageUrl && (
                   // eslint-disable-next-line @next/next/no-img-element
-                  <img src={pageUrl} alt={`Page ${pageIndex + 1} preview`} className="max-h-96 max-w-full bg-white object-contain" />
+                  <img key={pageUrl} src={pageUrl} alt={`Page ${pageIndex + 1} preview`} className="animate-fade-in-fast max-h-96 max-w-full bg-white object-contain" />
                 )}
                 <div className="flex items-center gap-3 text-xs">
                   <button

@@ -72,26 +72,85 @@ export function PresetPicker({
   onChange: (id: PresetId) => void;
 }) {
   return (
-    <div role="radiogroup" aria-label="Compression preset" className="grid grid-cols-1 gap-2 sm:grid-cols-3">
-      {PRESETS.map((p) => (
-        <button
-          key={p.id}
-          type="button"
-          role="radio"
-          aria-checked={value === p.id}
-          onClick={() => onChange(p.id)}
-          className={clsx(
-            "rounded-md border px-3 py-2 text-left",
-            value === p.id
-              ? "border-neutral-900 bg-neutral-100 dark:border-neutral-100 dark:bg-neutral-800"
-              : "border-neutral-300 dark:border-neutral-700 hover:bg-neutral-50 dark:hover:bg-neutral-900"
-          )}
-        >
-          <span className="block text-sm font-medium">{p.label}</span>
-          <span className="block text-xs text-neutral-500 dark:text-neutral-400">{p.hint}</span>
-        </button>
-      ))}
+    <div className="flex flex-col gap-1.5">
+      <span className="text-xs font-medium text-neutral-500 dark:text-neutral-400">Compression level</span>
+      <div role="radiogroup" aria-label="Compression level" className="grid grid-cols-3 gap-2">
+        {PRESETS.map((p) => (
+          <button
+            key={p.id}
+            type="button"
+            role="radio"
+            aria-checked={value === p.id}
+            onClick={() => onChange(p.id)}
+            className={clsx(
+              "rounded-md border px-3 py-2 text-left active:scale-[0.98]",
+              value === p.id
+                ? "border-neutral-900 bg-neutral-100 dark:border-neutral-100 dark:bg-neutral-800"
+                : "border-neutral-300 dark:border-neutral-700 hover:bg-neutral-50 dark:hover:bg-neutral-900"
+            )}
+          >
+            <span className="block text-sm font-medium">{p.label}</span>
+            <span className="mt-0.5 block text-[11px] leading-tight text-neutral-500 dark:text-neutral-400">{p.hint}</span>
+          </button>
+        ))}
+      </div>
     </div>
+  );
+}
+
+/** value 0..1 for a determinate bar; omit for an indeterminate one. */
+export function ProgressBar({ value, label }: { value?: number; label: string }) {
+  const pct = value === undefined ? undefined : Math.round(Math.min(1, Math.max(0, value)) * 100);
+  return (
+    <div className="animate-fade-in-fast flex flex-col gap-1" role="status">
+      <div
+        role="progressbar"
+        aria-label={label}
+        aria-valuemin={0}
+        aria-valuemax={100}
+        aria-valuenow={pct}
+        className="h-2 overflow-hidden rounded bg-neutral-200 dark:bg-neutral-800"
+      >
+        {pct === undefined ? (
+          <div className="animate-indeterminate h-full w-1/4 rounded bg-neutral-900 dark:bg-neutral-100" />
+        ) : (
+          <div
+            className="h-full rounded bg-neutral-900 dark:bg-neutral-100 transition-[width] duration-300 ease-out"
+            style={{ width: `${pct}%` }}
+          />
+        )}
+      </div>
+      <p className="text-xs text-neutral-500 dark:text-neutral-400">
+        {label}
+        {pct !== undefined && ` · ${pct}%`}
+      </p>
+    </div>
+  );
+}
+
+export function EstimateLine({
+  original,
+  estimate,
+  pending,
+}: {
+  original: number;
+  estimate: number | null;
+  pending: boolean;
+}) {
+  if (estimate === null) {
+    return pending ? (
+      <p className="animate-fade-in-fast text-xs text-neutral-500 dark:text-neutral-400">Estimating final size…</p>
+    ) : null;
+  }
+  const saved = percentSaved(original, estimate);
+  return (
+    <p key={estimate} className="animate-fade-in-fast text-sm">
+      <span className="text-neutral-500 dark:text-neutral-400">Estimated size: </span>
+      <span className="font-mono font-medium">~{formatBytes(estimate)}</span>{" "}
+      <span className={saved > 0 ? "text-green-600 dark:text-green-500" : "text-amber-600 dark:text-amber-500"}>
+        {saved > 0 ? `(about ${saved}% smaller)` : "(may not be smaller)"}
+      </span>
+    </p>
   );
 }
 
@@ -99,7 +158,7 @@ export function SizeStats({ original, compressed }: { original: number; compress
   const saved = percentSaved(original, compressed);
   const grew = compressed >= original;
   return (
-    <div className="grid grid-cols-3 gap-2 text-center">
+    <div className="animate-fade-in-fast grid grid-cols-3 gap-2 text-center">
       <Stat label="Original" value={formatBytes(original)} />
       <Stat label="Compressed" value={formatBytes(compressed)} />
       <Stat
@@ -130,7 +189,7 @@ function Stat({ label, value, tone }: { label: string; value: string; tone?: "go
 
 export function LargerNotice({ kind }: { kind: "image" | "PDF" }) {
   return (
-    <p className="rounded-md border border-amber-300 bg-amber-50 px-3 py-2 text-sm text-amber-800 dark:border-amber-800 dark:bg-amber-950/40 dark:text-amber-300">
+    <p className="animate-fade-in-fast rounded-md border border-amber-300 bg-amber-50 px-3 py-2 text-sm text-amber-800 dark:border-amber-800 dark:bg-amber-950/40 dark:text-amber-300">
       The compressed {kind} is not smaller than the original. This file is probably already well optimized.
       Download the original instead, or try the Smaller File preset.
     </p>

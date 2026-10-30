@@ -9,8 +9,10 @@ import Select from "@/components/Select";
 import ToolSkeleton from "@/components/ToolSkeleton";
 import {
   FileDropzone,
+  EstimateLine,
   LargerNotice,
   PresetPicker,
+  ProgressBar,
   SizeStats,
   buttonClass,
   primaryButtonClass,
@@ -61,7 +63,9 @@ export default function CompressTool() {
           </button>
         ))}
       </div>
-      {active === "image" ? <ImagePanel /> : <PdfPanel />}
+      <div key={active} className="animate-fade-in-fast flex flex-col gap-4">
+        {active === "image" ? <ImagePanel /> : <PdfPanel />}
+      </div>
     </ToolShell>
   );
 }
@@ -76,13 +80,14 @@ const SIZE_OPTIONS = [
 ];
 
 function ImagePanel() {
-  const [presetId, setPresetId] = usePersistedState("compress:preset", "balanced");
+  const [presetId, setPresetId] = usePersistedState("compress:preset", "medium");
   const [maxSide, setMaxSide] = usePersistedState("compress:maxside", "");
   const [format, setFormat] = usePersistedState("compress:format", "auto");
   const [file, setFile] = useState<File | null>(null);
   const [result, setResult] = useState<ImageResult | null>(null);
   const [previewUrl, setPreviewUrl] = useState("");
   const [busy, setBusy] = useState(false);
+  const [estimate, setEstimate] = useState<number | null>(null);
   const [error, setError] = useState("");
   const runId = useRef(0);
 
@@ -93,12 +98,17 @@ function ImagePanel() {
     const id = ++runId.current;
     const timer = setTimeout(async () => {
       setBusy(true);
+      setEstimate(null);
       try {
-        const res = await compressImage(file, {
-          quality: preset.imageQuality,
-          maxSide: maxSide ? Number(maxSide) : null,
-          format: format as OutputFormat,
-        });
+        const res = await compressImage(
+          file,
+          {
+            quality: preset.imageQuality,
+            maxSide: maxSide ? Number(maxSide) : null,
+            format: format as OutputFormat,
+          },
+          (bytes) => id === runId.current && setEstimate(bytes)
+        );
         if (id !== runId.current) return;
         setResult(res);
         setPreviewUrl(URL.createObjectURL(res.blob));
@@ -174,8 +184,15 @@ function ImagePanel() {
             </Field>
           </div>
 
+          {busy && (
+            <div className="flex flex-col gap-2">
+              <ProgressBar label="Compressing…" />
+              <EstimateLine original={file.size} estimate={estimate} pending={false} />
+            </div>
+          )}
+
           {result && (
-            <div className={clsx("flex flex-col gap-3", busy && "opacity-60")}>
+            <div className={clsx("animate-fade-in flex flex-col gap-3", busy && "opacity-60")}>
               <SizeStats original={file.size} compressed={result.blob.size} />
               <p className="text-xs text-neutral-500 dark:text-neutral-400">
                 {result.sourceWidth}×{result.sourceHeight} → {result.width}×{result.height} px. Metadata such as
@@ -186,7 +203,7 @@ function ImagePanel() {
               {previewUrl && (
                 <div className="flex justify-center rounded-lg border border-neutral-200 dark:border-neutral-800 bg-neutral-100 dark:bg-neutral-900 p-2">
                   {/* eslint-disable-next-line @next/next/no-img-element */}
-                  <img src={previewUrl} alt="Compressed preview" className="max-h-96 max-w-full object-contain" />
+                  <img key={previewUrl} src={previewUrl} alt="Compressed preview" className="animate-fade-in-fast max-h-96 max-w-full object-contain" />
                 </div>
               )}
               <div className="flex flex-wrap gap-2">
@@ -209,7 +226,6 @@ function ImagePanel() {
               </div>
             </div>
           )}
-          {!result && busy && <p className="text-sm text-neutral-500">Compressing…</p>}
         </>
       )}
     </>
