@@ -85,8 +85,20 @@ function componentCount(dict: PDFDict): 1 | 3 | null {
 /** Images this tool knows how to recompress safely. Everything else is left untouched. */
 export function collectImages(doc: PDFDocument): ImageItem[] {
   const items: ImageItem[] = [];
-  for (const [ref, obj] of doc.context.enumerateIndirectObjects()) {
-    if (!(obj instanceof PDFRawStream)) continue;
+  const objects = doc.context.enumerateIndirectObjects();
+
+  // Soft masks must stay single-channel gray, so they can't be swapped for RGB JPEGs.
+  const maskRefs = new Set<PDFRef>();
+  for (const [, obj] of objects) {
+    if (!(obj instanceof PDFRawStream) || obj.dict.lookup(name("Subtype")) !== name("Image")) continue;
+    for (const key of ["SMask", "Mask"]) {
+      const target = obj.dict.get(name(key));
+      if (target instanceof PDFRef) maskRefs.add(target);
+    }
+  }
+
+  for (const [ref, obj] of objects) {
+    if (!(obj instanceof PDFRawStream) || maskRefs.has(ref)) continue;
     const dict = obj.dict;
     if (dict.lookup(name("Subtype")) !== name("Image")) continue;
     const imageMask = dict.lookup(name("ImageMask"));

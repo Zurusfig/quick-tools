@@ -15,7 +15,7 @@ import {
   primaryButtonClass,
 } from "@/components/compress/shared";
 import { usePersistedState } from "@/lib/hooks";
-import { downloadBlob, formatBytes, getPreset, renamedFile, type PresetId } from "@/lib/compress";
+import { downloadBlob, formatBytes, getPreset, percentSaved, renamedFile, type PresetId } from "@/lib/compress";
 import {
   MAX_PDF_BYTES,
   PdfCompressError,
@@ -228,10 +228,9 @@ export default function PdfPanel() {
           </div>
           <PresetPicker value={preset.id as PresetId} onChange={setPresetId} />
           <EstimateLine original={file.size} estimate={liveEstimate} pending={estimating} />
-          {mode === "keep" && estimate?.file === file && estimate.key === estimateKey && estimate.images === 0 && (
+          {mode === "keep" && liveEstimate !== null && percentSaved(file.size, liveEstimate) < 3 && (
             <p className="animate-fade-in-fast text-xs text-amber-600 dark:text-amber-500">
-              No compressible images found. This PDF is mostly text, so this method can&apos;t shrink it much.
-              Flatten to pictures only helps if it&apos;s a scan.
+              Little to compress here without changing the content. If this is a scan, try Flatten to pictures.
             </p>
           )}
 
@@ -239,8 +238,8 @@ export default function PdfPanel() {
             <div key="keep" className="animate-fade-in-fast flex gap-3 rounded-md border border-neutral-200 px-3 py-3 text-sm text-neutral-600 dark:border-neutral-800 dark:text-neutral-400">
               <IconInfoCircle size={18} className="mt-0.5 shrink-0" />
               <p>
-                Text, links, bookmarks and forms stay as they are. Only photos and scans embedded in the PDF are
-                re-encoded, and images above {preset.pdfMaxSide}px are scaled down.
+                Text, fonts, links, bookmarks and forms stay as they are. Embedded photos are re-encoded (images above{" "}
+                {preset.pdfMaxSide}px are scaled down) and the internal data is repacked without loss.
               </p>
             </div>
           ) : (
@@ -292,9 +291,13 @@ export default function PdfPanel() {
               <SizeStats original={file.size} compressed={result.blob.size} />
               {result.images && (
                 <p className="text-xs text-neutral-500 dark:text-neutral-400">
-                  {result.images.total === 0
-                    ? "No compressible images were found, so the PDF was only repacked."
-                    : `Recompressed ${result.images.recompressed} of ${result.images.total} images. Text and links are unchanged.`}
+                  {[
+                    result.images.total > 0 && `Recompressed ${result.images.recompressed} of ${result.images.total} images`,
+                    result.streams?.recompressed ? `optimized ${result.streams.recompressed} internal streams` : "",
+                  ]
+                    .filter(Boolean)
+                    .join(" and ") || "Nothing needed compressing"}
+                  . Text and links are unchanged.
                 </p>
               )}
               {larger && <LargerNotice kind="PDF" />}

@@ -12,7 +12,7 @@ export class PdfCompressError extends Error {
 
 export type PdfMode = "keep" | "flatten";
 
-export type PdfProgress = { page: number; done: number; total: number; unit: "page" | "image" };
+export type PdfProgress = { page: number; done: number; total: number; unit: "page" | "image" | "stream" };
 
 export type PdfResult = {
   blob: Blob;
@@ -21,6 +21,7 @@ export type PdfResult = {
   pages?: Blob[];
   /** Only set in keep mode. */
   images?: { recompressed: number; total: number };
+  streams?: { recompressed: number };
 };
 
 type PdfJs = typeof import("pdfjs-dist/legacy/build/pdf.mjs");
@@ -184,13 +185,21 @@ async function loadForRewrite(file: Blob) {
   }
 }
 
-/** Keep mode: recompress embedded images only, leaving text, links and forms intact. */
+const tick = () => new Promise<void>((resolve) => setTimeout(resolve, 0));
+
+/**
+ * Keep mode: shrink embedded images (lossy) and re-deflate the PDF's internal streams (lossless),
+ * leaving text, fonts, links and forms intact.
+ */
 export async function compressPdfKeepText(
   file: File,
   opts: { quality: number; maxSide: number; onProgress?: (p: PdfProgress) => void; signal?: AbortSignal }
 ): Promise<PdfResult> {
   const doc = await loadForRewrite(file);
+  const { PDFName } = await import("pdf-lib");
   const { collectImages, recompressImage, applyRecompressed } = await import("./pdfImages.ts");
+  const { collectStreams, recompressStream, applyStream } = await import("./pdfStreams.ts");
+
   const items = collectImages(doc);
   let recompressed = 0;
   for (let i = 0; i < items.length; i++) {
@@ -202,36 +211,70 @@ export async function compressPdfKeepText(
       recompressed++;
     }
   }
-  opts.onProgress?.({ page: items.length, done: items.length, total: items.length, unit: "image" });
+
+  const replaced = new Set(items.map((it) => it.ref));
+  const streams = collectStreams(doc, replaced);
+  let streamsRecompressed = 0;
+  for (let i = 0; i < streams.length; i++) {
+    if (opts.signal?.aborted) throw new PdfCompressError("Cancelled.", "cancelled");
+    if (i % 10 === 0) {
+      opts.onProgress?.({ page: i + 1, done: i, total: streams.length, unit: "stream" });
+      await tick();
+    }
+    const data = recompressStream(streams[i]);
+    if (data) {
+      applyStream(doc, streams[i], data);
+      streamsRecompressed++;
+    }
+  }
+  opts.onProgress?.({ page: streams.length, done: streams.length, total: streams.length, unit: "stream" });
+
+  for (const page of doc.getPages()) page.node.delete(PDFName.of("Thumb"));
+
   const bytes = await doc.save({ useObjectStreams: true });
   return {
     blob: new Blob([bytes as BlobPart], { type: "application/pdf" }),
     pageCount: doc.getPageCount(),
     images: { recompressed, total: items.length },
+    streams: { recompressed: streamsRecompressed },
   };
 }
 
-/** Predict keep-mode output by recompressing the three biggest images. */
+/** Predict keep-mode output by sampling the biggest images and streams. */
 export async function estimatePdfKeepTextSize(
   file: File,
   opts: { quality: number; maxSide: number; signal?: AbortSignal }
 ): Promise<{ bytes: number; pages: number; images: number }> {
   const doc = await loadForRewrite(file);
   const { collectImages, recompressImage } = await import("./pdfImages.ts");
+  const { collectStreams, recompressStream } = await import("./pdfStreams.ts");
+
   const items = collectImages(doc);
   const imageBytes = items.reduce((sum, it) => sum + it.bytes, 0);
-  const sample = [...items].sort((a, b) => b.bytes - a.bytes).slice(0, 3);
+  const imageSample = [...items].sort((a, b) => b.bytes - a.bytes).slice(0, 3);
   let before = 0;
   let after = 0;
-  for (const item of sample) {
+  for (const item of imageSample) {
     if (opts.signal?.aborted) throw new PdfCompressError("Cancelled.", "cancelled");
     const next = await recompressImage(item, opts);
     before += item.bytes;
     after += next ? next.data.length : item.bytes;
   }
-  const ratio = before > 0 ? after / before : 1;
+  const imageSaved = imageBytes * (before > 0 ? 1 - after / before : 0);
+
+  const streams = collectStreams(doc, new Set(items.map((it) => it.ref)));
+  const streamBytes = streams.reduce((sum, it) => sum + it.bytes, 0);
+  const streamSample = [...streams].sort((a, b) => b.bytes - a.bytes).slice(0, 8);
+  let sBefore = 0;
+  let sAfter = 0;
+  for (const item of streamSample) {
+    sBefore += item.bytes;
+    sAfter += recompressStream(item)?.length ?? item.bytes;
+  }
+  const streamSaved = streamBytes * (sBefore > 0 ? 1 - sAfter / sBefore : 0);
+
   return {
-    bytes: Math.round(file.size - imageBytes * (1 - ratio)),
+    bytes: Math.max(1, Math.round(file.size - imageSaved - streamSaved)),
     pages: doc.getPageCount(),
     images: items.length,
   };
