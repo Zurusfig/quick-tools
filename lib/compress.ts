@@ -7,12 +7,14 @@ export type Preset = {
   imageQuality: number;
   pdfDpi: number;
   pdfQuality: number;
+  /** Longest side, in px, that embedded PDF images are scaled down to. */
+  pdfMaxSide: number;
 };
 
 export const PRESETS: Preset[] = [
-  { id: "low", label: "Low", hint: "Light compression, best quality", imageQuality: 0.9, pdfDpi: 180, pdfQuality: 0.85 },
-  { id: "medium", label: "Medium", hint: "Balanced size and quality", imageQuality: 0.75, pdfDpi: 130, pdfQuality: 0.7 },
-  { id: "high", label: "High", hint: "Smallest file, visible quality loss", imageQuality: 0.55, pdfDpi: 96, pdfQuality: 0.5 },
+  { id: "low", label: "Low", hint: "Light compression, best quality", imageQuality: 0.9, pdfDpi: 180, pdfQuality: 0.85, pdfMaxSide: 3000 },
+  { id: "medium", label: "Medium", hint: "Balanced size and quality", imageQuality: 0.75, pdfDpi: 130, pdfQuality: 0.7, pdfMaxSide: 2000 },
+  { id: "high", label: "High", hint: "Smallest file, visible quality loss", imageQuality: 0.55, pdfDpi: 96, pdfQuality: 0.5, pdfMaxSide: 1400 },
 ];
 
 export function getPreset(id: string): Preset {

@@ -10,11 +10,18 @@ export class PdfCompressError extends Error {
   }
 }
 
-export type PdfProgress = { page: number; done: number; total: number };
+export type PdfMode = "keep" | "flatten";
+
+export type PdfProgress = { page: number; done: number; total: number; unit: "page" | "image" | "stream" };
 
 export type PdfResult = {
   blob: Blob;
-  pages: Blob[];
+  pageCount: number;
+  /** Rendered page JPEGs, only available in flatten mode. */
+  pages?: Blob[];
+  /** Only set in keep mode. */
+  images?: { recompressed: number; total: number };
+  streams?: { recompressed: number };
 };
 
 type PdfJs = typeof import("pdfjs-dist/legacy/build/pdf.mjs");
@@ -39,14 +46,14 @@ function canvasToJpeg(canvas: HTMLCanvasElement, quality: number): Promise<Blob>
 
 type PdfDoc = Awaited<ReturnType<PdfJs["getDocument"]>["promise"]>;
 
-async function checkHeader(file: File): Promise<void> {
+async function checkHeader(file: Blob): Promise<void> {
   const head = new Uint8Array(await file.slice(0, 1024).arrayBuffer());
   if (!new TextDecoder("latin1").decode(head).includes("%PDF-")) {
     throw new PdfCompressError("This file doesn't look like a valid PDF.", "invalid");
   }
 }
 
-async function openPdf(file: File, signal?: AbortSignal): Promise<{ doc: PdfDoc; close: () => void }> {
+async function openPdf(file: Blob, signal?: AbortSignal): Promise<{ doc: PdfDoc; close: () => void }> {
   await checkHeader(file);
   const pdfjs = await loadPdfJs();
   const task = pdfjs.getDocument({ data: new Uint8Array(await file.arrayBuffer()) });
@@ -129,13 +136,13 @@ export async function compressPdf(
 
     for (let i = 1; i <= doc.numPages; i++) {
       if (opts.signal?.aborted) throw new PdfCompressError("Cancelled.", "cancelled");
-      opts.onProgress?.({ page: i, done: i - 1, total: doc.numPages });
+      opts.onProgress?.({ page: i, done: i - 1, total: doc.numPages, unit: "page" });
       try {
         const { jpeg, width, height } = await renderPageJpeg(doc, i, opts.dpi, opts.quality);
         pages.push(jpeg);
         const image = await out.embedJpg(new Uint8Array(await jpeg.arrayBuffer()));
         out.addPage([width, height]).drawImage(image, { x: 0, y: 0, width, height });
-        opts.onProgress?.({ page: i, done: i, total: doc.numPages });
+        opts.onProgress?.({ page: i, done: i, total: doc.numPages, unit: "page" });
       } catch (err) {
         if (opts.signal?.aborted) throw new PdfCompressError("Cancelled.", "cancelled");
         if (err instanceof PdfCompressError) throw err;
@@ -143,8 +150,132 @@ export async function compressPdf(
       }
     }
     const bytes = await out.save();
-    return { blob: new Blob([bytes as BlobPart], { type: "application/pdf" }), pages };
+    return { blob: new Blob([bytes as BlobPart], { type: "application/pdf" }), pageCount: doc.numPages, pages };
   } finally {
     close();
   }
+}
+
+/** Render one page of a PDF (e.g. the result of keep mode) as a JPEG for previewing. */
+export async function renderPdfPreview(pdf: Blob, pageNumber: number): Promise<Blob> {
+  const { doc, close } = await openPdf(pdf);
+  try {
+    return (await renderPageJpeg(doc, pageNumber, 110, 0.8)).jpeg;
+  } finally {
+    close();
+  }
+}
+
+async function loadForRewrite(file: Blob) {
+  await checkHeader(file);
+  const { PDFDocument } = await import("pdf-lib");
+  try {
+    const doc = await PDFDocument.load(new Uint8Array(await file.arrayBuffer()), { updateMetadata: false });
+    if (doc.getPageCount() > MAX_PDF_PAGES) {
+      throw new PdfCompressError(`This PDF has ${doc.getPageCount()} pages. The limit is ${MAX_PDF_PAGES} to keep your browser from running out of memory.`, "toomany");
+    }
+    return doc;
+  } catch (err) {
+    if (err instanceof PdfCompressError) throw err;
+    // pdf-lib throws a plain Error for encrypted input
+    if (err instanceof Error && /encrypted/i.test(err.message)) {
+      throw new PdfCompressError("This PDF is password protected. Remove the password first, then try again.", "encrypted");
+    }
+    throw new PdfCompressError("This PDF is damaged or in a format the browser can't read.", "invalid");
+  }
+}
+
+const tick = () => new Promise<void>((resolve) => setTimeout(resolve, 0));
+
+/**
+ * Keep mode: shrink embedded images (lossy) and re-deflate the PDF's internal streams (lossless),
+ * leaving text, fonts, links and forms intact.
+ */
+export async function compressPdfKeepText(
+  file: File,
+  opts: { quality: number; maxSide: number; onProgress?: (p: PdfProgress) => void; signal?: AbortSignal }
+): Promise<PdfResult> {
+  const doc = await loadForRewrite(file);
+  const { PDFName } = await import("pdf-lib");
+  const { collectImages, recompressImage, applyRecompressed } = await import("./pdfImages.ts");
+  const { collectStreams, recompressStream, applyStream } = await import("./pdfStreams.ts");
+
+  const items = collectImages(doc);
+  let recompressed = 0;
+  for (let i = 0; i < items.length; i++) {
+    if (opts.signal?.aborted) throw new PdfCompressError("Cancelled.", "cancelled");
+    opts.onProgress?.({ page: i + 1, done: i, total: items.length, unit: "image" });
+    const next = await recompressImage(items[i], opts);
+    if (next) {
+      applyRecompressed(doc, items[i], next);
+      recompressed++;
+    }
+  }
+
+  const replaced = new Set(items.map((it) => it.ref));
+  const streams = collectStreams(doc, replaced);
+  let streamsRecompressed = 0;
+  for (let i = 0; i < streams.length; i++) {
+    if (opts.signal?.aborted) throw new PdfCompressError("Cancelled.", "cancelled");
+    if (i % 10 === 0) {
+      opts.onProgress?.({ page: i + 1, done: i, total: streams.length, unit: "stream" });
+      await tick();
+    }
+    const data = recompressStream(streams[i]);
+    if (data) {
+      applyStream(doc, streams[i], data);
+      streamsRecompressed++;
+    }
+  }
+  opts.onProgress?.({ page: streams.length, done: streams.length, total: streams.length, unit: "stream" });
+
+  for (const page of doc.getPages()) page.node.delete(PDFName.of("Thumb"));
+
+  const bytes = await doc.save({ useObjectStreams: true });
+  return {
+    blob: new Blob([bytes as BlobPart], { type: "application/pdf" }),
+    pageCount: doc.getPageCount(),
+    images: { recompressed, total: items.length },
+    streams: { recompressed: streamsRecompressed },
+  };
+}
+
+/** Predict keep-mode output by sampling the biggest images and streams. */
+export async function estimatePdfKeepTextSize(
+  file: File,
+  opts: { quality: number; maxSide: number; signal?: AbortSignal }
+): Promise<{ bytes: number; pages: number; images: number }> {
+  const doc = await loadForRewrite(file);
+  const { collectImages, recompressImage } = await import("./pdfImages.ts");
+  const { collectStreams, recompressStream } = await import("./pdfStreams.ts");
+
+  const items = collectImages(doc);
+  const imageBytes = items.reduce((sum, it) => sum + it.bytes, 0);
+  const imageSample = [...items].sort((a, b) => b.bytes - a.bytes).slice(0, 3);
+  let before = 0;
+  let after = 0;
+  for (const item of imageSample) {
+    if (opts.signal?.aborted) throw new PdfCompressError("Cancelled.", "cancelled");
+    const next = await recompressImage(item, opts);
+    before += item.bytes;
+    after += next ? next.data.length : item.bytes;
+  }
+  const imageSaved = imageBytes * (before > 0 ? 1 - after / before : 0);
+
+  const streams = collectStreams(doc, new Set(items.map((it) => it.ref)));
+  const streamBytes = streams.reduce((sum, it) => sum + it.bytes, 0);
+  const streamSample = [...streams].sort((a, b) => b.bytes - a.bytes).slice(0, 8);
+  let sBefore = 0;
+  let sAfter = 0;
+  for (const item of streamSample) {
+    sBefore += item.bytes;
+    sAfter += recompressStream(item)?.length ?? item.bytes;
+  }
+  const streamSaved = streamBytes * (sBefore > 0 ? 1 - sAfter / sBefore : 0);
+
+  return {
+    bytes: Math.max(1, Math.round(file.size - imageSaved - streamSaved)),
+    pages: doc.getPageCount(),
+    images: items.length,
+  };
 }
